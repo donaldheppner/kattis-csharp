@@ -14,7 +14,7 @@ problem_name = arguments[1]
 print("Fetching problem: " + problem_name)
 
 # make sure the problem exists
-problem_url = "https://open.kattis.com/problems/" + problem_name
+problem_url = "https://itkvdn.kattis.com/problems/" + problem_name
 problem_request = urllib.request.Request(problem_url, headers={"User-Agent" : "Magic Browser"})
 with urllib.request.urlopen(problem_request) as problem_request:
     if problem_request.getcode() != 200:
