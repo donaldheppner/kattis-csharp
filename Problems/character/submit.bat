@@ -1,0 +1,1 @@
+python ..\..\submit.py Program.cs -p character -f
