@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -11,33 +12,20 @@ namespace Kattis
             Solve(Console.OpenStandardInput(), Console.OpenStandardOutput());
         }
 
-        static int leftAndRightInOrder(int index, string letters)
+        public static int GetLongestSequence(int index, string letters, string sequence)
         {
-            char middle = letters[index];
-            char leftLetter = middle;
-            char rightLetter = middle;
+            sequence += letters[index];
 
-            int leftCount = 0;
-            for(int i = index - 1; i >= 0; i--)
-            {
-                if (letters[i] < leftLetter)
-                {
-                    leftLetter = letters[i];
-                    leftCount++;
-                }
-            }
-
-            int rightCount = 0;
+            var chains = new List<int> { sequence.Length };
             for (int i = index + 1; i < letters.Length; i++)
             {
-                if (letters[i] > rightLetter)
+                if (letters[i] > letters[index])
                 {
-                    rightLetter = letters[i];
-                    rightLetter++;
+                    chains.Add(GetLongestSequence(i, letters, sequence));
                 }
             }
 
-            return 26 - leftCount - rightCount - 1;
+            return chains.Max();
         }
 
         public static void Solve(Stream stdin, Stream stdout)
@@ -47,14 +35,17 @@ namespace Kattis
 
             var letters = reader.ReadLine();
 
-            int min = 26;
-            for (int i = 0; i < letters.Length; i++)
+            var lengths = new List<int>();
+            char minLetter = 'z';
+            for(int i = 0; i < letters.Length; i++)
             {
-                int a = leftAndRightInOrder(i, letters);
-                if (a < min) min = a;
+                if (letters[i] < minLetter)
+                {
+                    minLetter = letters[i];
+                    lengths.Add(GetLongestSequence(i, letters, string.Empty));
+                }
             }
-
-            writer.WriteLine(min);
+            writer.WriteLine(26 - lengths.Max());
             writer.Flush();
         }
     }
