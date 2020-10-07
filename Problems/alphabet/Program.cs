@@ -12,6 +12,20 @@ namespace Kattis
             Solve(Console.OpenStandardInput(), Console.OpenStandardOutput());
         }
 
+        class Node
+        {
+            public char Value;
+            public Node Parent = null;
+            public List<Node> Children = new List<Node>();
+
+            public Node AddChild(char value)
+            {
+                Node result = new Node {Value = value, Parent = this};
+                Children.Add(result);
+                return result;
+            }
+        }
+
         public static int GetLongestSequence(int index, string letters, string sequence)
         {
             sequence += letters[index];
@@ -35,12 +49,13 @@ namespace Kattis
 
             var letters = reader.ReadLine();
 
-            var lengths = new List<int>();
+            var roots = new List<Node>();
             char minLetter = 'z';
             for(int i = 0; i < letters.Length; i++)
             {
                 if (letters[i] < minLetter)
                 {
+
                     minLetter = letters[i];
                     lengths.Add(GetLongestSequence(i, letters, string.Empty));
                 }
