@@ -2,13 +2,12 @@
 from __future__ import print_function
 import argparse
 import os
-import sys
 import re
+import sys
 import webbrowser
 
 import requests
 import requests.exceptions
-
 
 # Python 2/3 compatibility
 if sys.version_info[0] >= 3:
@@ -19,29 +18,38 @@ else:
 
 # End Python 2/3 compatibility
 
-_DEFAULT_CONFIG = '/etc/kattis/submit/kattisrc'
-_VERSION = 'Version: $Version: $'
+_DEFAULT_CONFIG = '/usr/local/etc/kattisrc'
 _LANGUAGE_GUESS = {
-    '.java': 'Java',
     '.c': 'C',
-    '.cpp': 'C++',
-    '.h': 'C++',
-    '.cc': 'C++',
-    '.cxx': 'C++',
     '.c++': 'C++',
-    '.py': 'Python',
-    '.cs': 'C#',
+    '.cc': 'C++',
     '.c#': 'C#',
+    '.cpp': 'C++',
+    '.cs': 'C#',
+    '.cxx': 'C++',
+    '.cbl': 'COBOL',
+    '.cob': 'COBOL',
+    '.cpy': 'COBOL',
+    '.fs': 'F#',
     '.go': 'Go',
-    '.m': 'Objective-C',
+    '.h': 'C++',
     '.hs': 'Haskell',
-    '.pl': 'Prolog',
+    '.java': 'Java',
     '.js': 'JavaScript',
+    '.kt': 'Kotlin',
+    '.lisp': 'Common Lisp',
+    '.cl': 'Common Lisp',
+    '.m': 'Objective-C',
+    '.ml': 'OCaml',
+    '.pas': 'Pascal',
     '.php': 'PHP',
-    '.rb': 'Ruby'
+    '.pl': 'Prolog',
+    '.rb': 'Ruby',
+    '.rs': 'Rust',
+    '.scala': 'Scala',
 }
-_GUESS_MAINCLASS = {'Java', 'Python'}
-
+_GUESS_MAINCLASS = {'Java', 'Scala', 'Kotlin'}
+_GUESS_MAINFILE = {'Python 2', 'Python 3', 'PHP', 'JavaScript', 'Rust', 'Pascal'}
 
 _HEADERS = {'User-Agent': 'kattis-cli-submit'}
 
@@ -64,12 +72,12 @@ def get_config():
     if os.path.exists(_DEFAULT_CONFIG):
         cfg.read(_DEFAULT_CONFIG)
 
-    if not cfg.read([os.path.join(os.getenv('HOME'), '.kattisrc'),
+    if not cfg.read([os.path.join(os.path.expanduser("~"), '.kattisrc'),
                      os.path.join(os.path.dirname(sys.argv[0]), '.kattisrc')]):
         raise ConfigError('''\
 I failed to read in a config file from your home directory or from the
-same directory as this script. Please go to your Kattis installation
-to download a .kattisrc file.
+same directory as this script. To download a .kattisrc file please visit
+https://<kattis>/download/kattisrc
 
 The file should look something like this:
 [user]
@@ -77,9 +85,75 @@ username: yourusername
 token: *********
 
 [kattis]
+hostname: <kattis>
 loginurl: https://<kattis>/login
-submissionurl: https://<kattis>/submit''')
+submissionurl: https://<kattis>/submit
+submissionsurl: https://<kattis>/submissions''')
     return cfg
+
+
+def is_python2(files):
+    python2 = re.compile(r'^\s*\bprint\b *[^ \(\),\]]|\braw_input\b')
+    for filename in files:
+        try:
+            with open(filename) as f:
+                for index, line in enumerate(f):
+                    if index == 0 and line.startswith('#!'):
+                        if 'python2' in line:
+                            return True
+                        if 'python3' in line:
+                            return False
+                    if python2.search(line.split('#')[0]):
+                        return True
+        except IOError:
+            return False
+    return False
+
+
+def guess_language(ext, files):
+    if ext == ".C":
+        return "C++"
+    ext = ext.lower()
+    if ext == ".h":
+        if any(f.endswith(".c") for f in files):
+            return "C"
+        else:
+            return "C++"
+    if ext == ".py":
+        if is_python2(files):
+            return "Python 2"
+        else:
+            return "Python 3"
+    return _LANGUAGE_GUESS.get(ext, None)
+
+
+def guess_mainfile(language, files):
+    for filename in files:
+        if os.path.splitext(os.path.basename(filename))[0] in ['main', 'Main']:
+            return filename
+    for filename in files:
+        try:
+            with open(filename) as f:
+                conts = f.read()
+                if language in ['Java', 'Rust', 'Scala', 'Kotlin'] and re.search(r' main\s*\(', conts):
+                    return filename
+                if language == 'Pascal' and re.match(r'^\s*[Pp]rogram\b', conts):
+                    return filename
+        except IOError:
+            pass
+    return files[0]
+
+
+def guess_mainclass(language, files):
+    if language in _GUESS_MAINFILE and len(files) > 1:
+        return os.path.basename(guess_mainfile(language, files))
+    if language in _GUESS_MAINCLASS:
+        mainfile = os.path.basename(guess_mainfile(language, files))
+        name = os.path.splitext(mainfile)[0]
+        if language == 'Kotlin':
+            return name[0].upper() + name[1:] + 'Kt'
+        return name
+    return None
 
 
 def login(login_url, username, password=None, token=None):
@@ -157,7 +231,10 @@ def confirm_or_die(problem, language, files, mainclass, tag):
     print('Language:', language)
     print('Files:', ', '.join(files))
     if mainclass:
-        print('Mainclass:', mainclass)
+        if language in _GUESS_MAINFILE:
+            print('Main file:', mainclass)
+        else:
+            print('Mainclass:', mainclass)
     if tag:
         print('Tag:', tag)
     print('Submit (y/N)?')
@@ -179,21 +256,21 @@ def open_submission(submit_response, cfg):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Submit a solution to Kattis')
+    parser = argparse.ArgumentParser(prog='kattis', description='Submit a solution to Kattis')
     parser.add_argument('-p', '--problem',
-                   help=''''Which problem to submit to.
+                        help=''''Which problem to submit to.
 Overrides default guess (first part of first filename)''')
     parser.add_argument('-m', '--mainclass',
-                   help='''Sets mainclass.
+                        help='''Sets mainclass.
 Overrides default guess (first part of first filename)''')
     parser.add_argument('-l', '--language',
-                   help='''Sets language.
+                        help='''Sets language.
 Overrides default guess (based on suffix of first filename)''')
     parser.add_argument('-t', '--tag',
-                   help=argparse.SUPPRESS)
+                        help=argparse.SUPPRESS)
     parser.add_argument('-f', '--force',
-                   help='Force, no confirmation prompt before submission',
-                   action='store_true')
+                        help='Force, no confirmation prompt before submission',
+                        action='store_true')
     parser.add_argument('files', nargs='+')
 
     args = parser.parse_args()
@@ -205,10 +282,12 @@ Overrides default guess (based on suffix of first filename)''')
         print(exc)
         sys.exit(1)
 
-    problem, ext = os.path.splitext(os.path.basename(args.files[0]))
-    language = _LANGUAGE_GUESS.get(ext, None)
-    mainclass = problem if language in _GUESS_MAINCLASS else None
+    problem, ext = os.path.splitext(os.path.basename(files[0]))
+    language = guess_language(ext, files)
+    mainclass = guess_mainclass(language, files)
     tag = args.tag
+
+    problem = problem.lower()
 
     if args.problem:
         problem = args.problem
@@ -218,17 +297,6 @@ Overrides default guess (based on suffix of first filename)''')
 
     if args.language:
         language = args.language
-    elif language == 'Python':
-        python_version = str(sys.version_info[0])
-        try:
-            python_version = cfg.get('defaults', 'python-version')
-        except configparser.Error:
-            pass
-
-        if python_version not in ['2', '3']:
-            print('python-version in .kattisrc must be 2 or 3')
-            sys.exit(1)
-        language = 'Python ' + python_version
 
     if language is None:
         print('''\
@@ -236,7 +304,7 @@ No language specified, and I failed to guess language from filename
 extension "%s"''' % (ext,))
         sys.exit(1)
 
-    files = list(set(args.files))
+    files = sorted(list(set(args.files)))
 
     try:
         login_reply = login_from_config(cfg)
@@ -281,7 +349,7 @@ extension "%s"''' % (ext,))
         elif result.status_code == 404:
             print('Incorrect submit URL (404)')
         else:
-            print('Status code:', login_reply.status_code)
+            print('Status code:', result.status_code)
         sys.exit(1)
 
     plain_result = result.content.decode('utf-8').replace('<br />', '\n')

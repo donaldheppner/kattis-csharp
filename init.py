@@ -5,16 +5,21 @@ import urllib.request
 import zipfile
 
 arguments = sys.argv
-if len(arguments) != 2:
-    print("Missing problem name")
+if len(arguments) < 3:
+    print("Missing problem name or URL")
     print("Usage: init.py problem_name")
     quit()
 
 problem_name = arguments[1]
 print("Fetching problem: " + problem_name)
 
+if len(arguments) == 3:
+    problem_url = arguments[2]
+else:
+    problem_url = "https://open.kattis.com"
+
 # make sure the problem exists
-problem_url = "https://open.kattis.com/problems/" + problem_name
+problem_url = problem_url + "/problems/" + problem_name
 problem_request = urllib.request.Request(problem_url, headers={"User-Agent" : "Magic Browser"})
 with urllib.request.urlopen(problem_request) as problem_request:
     if problem_request.getcode() != 200:
@@ -49,6 +54,7 @@ else:
     # unzip
     with zipfile.ZipFile(data_zip, 'r') as zip:
         zip.extractall(os.path.join(problem_path, "testdata"))
+        print("Test data extracted")
 
     # delete sample zip
     os.remove(data_zip)

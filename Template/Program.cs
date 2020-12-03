@@ -6,21 +6,23 @@ namespace Kattis
 {
     internal class Program
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
-            Solve(Console.OpenStandardInput(), Console.OpenStandardOutput());
+            return Solve(Console.OpenStandardInput(), Console.OpenStandardOutput());
         }
 
-        public static void Solve(Stream stdin, Stream stdout)
+        public static int Solve(Stream @in, Stream @out)
         {
-            var reader = new StreamReader(stdin);
-            var writer = new StreamWriter(stdout);
+            var reader = new StreamReader(@in);
+            var writer = new StreamWriter(@out);
 
             var answer = reader.ReadLine()?.Split(' ').Last() ?? string.Empty;
 
 
             writer.WriteLine(answer);
             writer.Flush();
+
+            return 0;
         }
     }
 }
